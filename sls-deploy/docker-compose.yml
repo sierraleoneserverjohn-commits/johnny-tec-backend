@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  sls-db:
+    image: postgres:15-alpine
+    container_name: sls_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-sls_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sls_secure_password}
+      POSTGRES_DB: ${POSTGRES_DB:-sls_core}
+    ports:
+      - "5432:5432"
+    volumes:
+      - sls_postgres_data:/var/lib/postgresql/data
+    networks:
+      - sls_network
+
+  sls-redis:
+    image: redis:7-alpine
+    container_name: sls_cache
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - sls_redis_data:/data
+    networks:
+      - sls_network
+
+volumes:
+  sls_postgres_data:
+  sls_redis_data:
+
+networks:
+  sls_network:
+    driver: bridge
+    
