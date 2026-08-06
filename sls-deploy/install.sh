@@ -45,7 +45,7 @@ else
 fi
 
 # 4. Clone / Sync Repositories if missing
-GITHUB_USER="YOUR_GITHUB_USERNAME"
+GITHUB_USER="fatormajohn64-bit"
 
 for REPO in sls-api sls-dashboard sls-daemon; do
     if [ ! -d "../$REPO" ]; then
