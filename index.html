@@ -11,6 +11,7 @@
       --neon-cyan: #00f0ff;
       --neon-pink: #ff007f;
       --neon-green: #00ff66;
+      --neon-yellow: #ffcc00;
       --text: #e0e6ed;
     }
     body {
@@ -20,7 +21,7 @@
       color: var(--text);
       padding: 20px;
     }
-    .container { max-width: 1000px; margin: 0 auto; }
+    .container { max-width: 1100px; margin: 0 auto; }
     header {
       display: flex;
       justify-content: space-between;
@@ -42,7 +43,7 @@
       gap: 8px;
     }
     .dot { width: 8px; height: 8px; background: var(--neon-green); border-radius: 50%; box-shadow: 0 0 8px var(--neon-green); }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; }
     .card {
       background: var(--card);
       border: 1px solid rgba(255, 255, 255, 0.1);
@@ -50,11 +51,12 @@
       padding: 20px;
       box-shadow: 0 4px 20px rgba(0,0,0,0.5);
     }
-    .card h2 { margin-top: 0; font-size: 1.2rem; color: var(--neon-pink); border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 8px; }
+    .card h2 { margin-top: 0; font-size: 1.1rem; color: var(--neon-pink); border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 8px; }
+    label { font-size: 0.85rem; color: #a0aab5; }
     select, input, textarea, button {
       width: 100%;
       padding: 10px;
-      margin-top: 8px;
+      margin-top: 6px;
       margin-bottom: 12px;
       border-radius: 6px;
       border: 1px solid rgba(255,255,255,0.2);
@@ -71,70 +73,128 @@
       transition: transform 0.2s;
     }
     button:active { transform: scale(0.98); }
+    .btn-alt {
+      background: transparent;
+      border: 1px solid var(--neon-cyan);
+      color: var(--neon-cyan);
+    }
     .output {
       background: #050608;
       border: 1px solid rgba(0, 240, 255, 0.3);
       border-radius: 6px;
       padding: 12px;
       min-height: 80px;
-      max-height: 200px;
+      max-height: 220px;
       overflow-y: auto;
       font-family: monospace;
-      font-size: 0.85rem;
+      font-size: 0.82rem;
       color: #a0aab5;
       white-space: pre-wrap;
     }
     img.preview { max-width: 100%; border-radius: 8px; margin-top: 10px; display: none; border: 1px solid var(--neon-cyan); }
+    .key-tag {
+      display: inline-block;
+      padding: 4px 8px;
+      margin: 4px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-family: monospace;
+    }
+    .key-active { background: rgba(0,255,102,0.15); border: 1px solid var(--neon-green); color: var(--neon-green); }
+    .key-missing { background: rgba(255,0,127,0.15); border: 1px solid var(--neon-pink); color: var(--neon-pink); }
   </style>
 </head>
 <body>
   <div class="container">
     <header>
-      <h1>⚡ JOHNNY TEC BACKEND COMMAND CENTER</h1>
-      <div class="status-badge"><div class="dot"></div> SERVER ONLINE & UNLOCKED</div>
+      <h1>⚡ JOHNNY TEC AI MULTI-API COMMAND CENTER</h1>
+      <div class="status-badge"><div class="dot"></div> BACKEND ACTIVE</div>
     </header>
 
     <div class="grid">
-      <!-- CHAT TESTER PANEL -->
+      <!-- API KEY HEALTH & STATUS MONITOR -->
       <div class="card">
-        <h2>🤖 AI Model Router Tester</h2>
-        <label>Select Provider:</label>
+        <h2>🔑 API Keys & Credit Health Monitor</h2>
+        <button onclick="checkKeys()">Scan API Key Status</button>
+        <div id="keyStatusContainer" style="margin-top: 10px;">
+          <p style="font-size: 0.8rem; color: #8a99ad;">Click scan to check loaded environment variables.</p>
+        </div>
+      </div>
+
+      <!-- AI CHAT MODEL ROUTER -->
+      <div class="card">
+        <h2>🤖 Multi-LLM Model Router</h2>
+        <label>Select Provider Model:</label>
         <select id="providerSelect">
-          <option value="groq">Groq (Llama 3 70B)</option>
+          <option value="gemini">Google Gemini 1.5 Flash (Free)</option>
+          <option value="openrouter">DeepSeek R1 via OpenRouter (Free)</option>
+          <option value="groq">Groq (Llama 3.3 70B - Fast)</option>
+          <option value="huggingface">Hugging Face (Llama 3.2 Open Source)</option>
           <option value="claude">Anthropic (Claude 3.5 Sonnet)</option>
           <option value="gpt">OpenAI (GPT-4o Mini)</option>
         </select>
-        <textarea id="chatInput" rows="3" placeholder="Enter message to test API..."></textarea>
-        <button onclick="testChat()">Send Request</button>
+        <textarea id="chatInput" rows="2" placeholder="Ask anything to test selected API..."></textarea>
+        <button onclick="testChat()">Send AI Request</button>
         <div class="output" id="chatOutput">Response output will appear here...</div>
       </div>
 
-      <!-- IMAGE GENERATION PANEL -->
+      <!-- FLUX IMAGE GENERATOR -->
       <div class="card">
-        <h2>🎨 Flux.1 Image Generator</h2>
-        <input type="text" id="imagePrompt" placeholder="A cybernetic lion with neon blue eyes...">
+        <h2>🎨 AI Image Generator</h2>
+        <label>Select Engine:</label>
+        <select id="imageEngine">
+          <option value="replicate">Replicate (Flux.1 Schnell)</option>
+          <option value="huggingface">Hugging Face (FLUX.1-dev Free)</option>
+        </select>
+        <input type="text" id="imagePrompt" placeholder="A futuristic cybernetic lion in Freetown...">
         <button onclick="testImage()">Generate Image</button>
-        <div class="output" id="imageOutput">Image URL output will appear here...</div>
+        <div class="output" id="imageOutput">Image status will appear here...</div>
         <img id="imagePreview" class="preview" alt="Generated Output">
       </div>
 
-      <!-- WEBSOCKET VOICE TESTER -->
+      <!-- TAVILY WEB SEARCH -->
       <div class="card">
-        <h2>🎙️ Real-Time Voice WebSocket</h2>
-        <p style="font-size: 0.85rem; color: #8a99ad;">Test WebSocket handshake and keep-alive ping status.</p>
-        <button onclick="testWebSocket()">Connect WebSocket Stream</button>
-        <button onclick="pingServer()" style="background: transparent; border: 1px solid var(--neon-cyan); color: var(--neon-cyan);">Manual Keep-Alive Ping</button>
+        <h2>🌐 Tavily Live Web Search</h2>
+        <input type="text" id="searchQuery" placeholder="Latest AI tech news...">
+        <button onclick="testSearch()">Search Web</button>
+        <div class="output" id="searchOutput">Search results will appear here...</div>
+      </div>
+
+      <!-- REAL-TIME VOICE WEBSOCKET -->
+      <div class="card">
+        <h2>🎙️ Real-Time Voice Socket Stream</h2>
+        <p style="font-size: 0.8rem; color: #8a99ad;">Test WebSocket live audio data stream connection.</p>
+        <button onclick="testWebSocket()">Connect Socket Stream</button>
+        <button onclick="pingServer()" class="btn-alt">Manual Keep-Alive Ping</button>
         <div class="output" id="wsOutput">WebSocket logs will appear here...</div>
       </div>
     </div>
   </div>
 
   <script>
+    async function checkKeys() {
+      const container = document.getElementById('keyStatusContainer');
+      container.innerHTML = 'Scanning server environment variables...';
+      try {
+        const res = await fetch('/api/keys-status');
+        const data = await res.json();
+        let html = '';
+        for (const [key, loaded] of Object.entries(data.keys)) {
+          const statusClass = loaded ? 'key-active' : 'key-missing';
+          const icon = loaded ? '✓' : '✗';
+          html += `<span class="key-tag ${statusClass}">${icon} ${key}</span>`;
+        }
+        container.innerHTML = html;
+      } catch (err) {
+        container.innerText = 'Error checking keys: ' + err.message;
+      }
+    }
+
     async function testChat() {
       const provider = document.getElementById('providerSelect').value;
-      const message = document.getElementById('chatInput').value || 'Hello Johnny Tec!';
+      const message = document.getElementById('chatInput').value || 'Hello Johnny Tec AI!';
       const output = document.getElementById('chatOutput');
-      output.innerText = 'Connecting to ' + provider.toUpperCase() + ' API...';
+      output.innerText = 'Routing to ' + provider.toUpperCase() + ' API...';
 
       try {
         const res = await fetch('/api/chat', {
@@ -143,7 +203,7 @@
           body: JSON.stringify({ provider, message })
         });
         const data = await res.json();
-        output.innerText = JSON.stringify(data, null, 2);
+        output.innerText = data.reply || JSON.stringify(data, null, 2);
       } catch (err) {
         output.innerText = 'Error: ' + err.message;
       }
@@ -151,16 +211,17 @@
 
     async function testImage() {
       const prompt = document.getElementById('imagePrompt').value || 'Cyberpunk sports car night city';
+      const engine = document.getElementById('imageEngine').value;
       const output = document.getElementById('imageOutput');
       const img = document.getElementById('imagePreview');
-      output.innerText = 'Sending prompt to Replicate Flux.1...';
+      output.innerText = 'Generating image via ' + engine.toUpperCase() + '...';
       img.style.display = 'none';
 
       try {
         const res = await fetch('/api/generate-image', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt })
+          body: JSON.stringify({ prompt, engine })
         });
         const data = await res.json();
         output.innerText = JSON.stringify(data, null, 2);
@@ -168,6 +229,24 @@
           img.src = data.imageUrl;
           img.style.display = 'block';
         }
+      } catch (err) {
+        output.innerText = 'Error: ' + err.message;
+      }
+    }
+
+    async function testSearch() {
+      const query = document.getElementById('searchQuery').value || 'Sierra Leone technology updates';
+      const output = document.getElementById('searchOutput');
+      output.innerText = 'Executing Tavily search...';
+
+      try {
+        const res = await fetch('/api/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query })
+        });
+        const data = await res.json();
+        output.innerText = JSON.stringify(data, null, 2);
       } catch (err) {
         output.innerText = 'Error: ' + err.message;
       }
@@ -182,26 +261,29 @@
       const ws = new WebSocket(wsUrl);
 
       ws.onopen = () => {
-        output.innerText += '\n Connected! Sending ping packet...';
-        ws.send(JSON.stringify({ event: 'ping', time: Date.now() }));
+        output.innerText += '\nConnected! Voice socket streaming standard ready.';
+        ws.send(JSON.stringify({ event: 'audio_stream_init', sampleRate: 16000 }));
       };
 
       ws.onmessage = (evt) => {
-        output.innerText += '\n Received: ' + evt.data;
+        output.innerText += '\nReceived: ' + evt.data;
       };
 
       ws.onerror = (err) => {
-        output.innerText += '\n WebSocket Error occurred.';
+        output.innerText += '\nWebSocket Error occurred.';
       };
     }
 
     async function pingServer() {
       const output = document.getElementById('wsOutput');
-      output.innerText = 'Sending manual keep-alive request...';
+      output.innerText = 'Sending keep-alive request...';
       const res = await fetch('/ping');
       const data = await res.json();
       output.innerText = 'Server Pinged: ' + JSON.stringify(data);
     }
+
+    // Auto-run key check on load
+    window.onload = checkKeys;
   </script>
 </body>
 </html>
