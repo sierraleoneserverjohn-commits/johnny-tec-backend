@@ -12,12 +12,11 @@ app.use(express.json());
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 
-// Memory store for conversation session
 const memoryStore = new Map();
 const SYSTEM_PROMPT = "You are Johnny Tec AI — a sharp, intelligent, witty cyber-neon AI assistant.";
 
 // -------------------------------------------------------------
-// 1. KEEP-ALIVE SELF-PING ROUTINE
+// 1. KEEP-ALIVE ROUTINE
 // -------------------------------------------------------------
 const SERVER_URL = process.env.RENDER_EXTERNAL_URL || 'https://johnny-tec-backend-in37.onrender.com';
 
@@ -42,11 +41,30 @@ app.get('/', (req, res) => {
 });
 
 // -------------------------------------------------------------
-// 3. API ROUTER ENDPOINTS
+// 3. API KEY & HEALTH STATUS ROUTE
+// -------------------------------------------------------------
+app.get('/api/keys-status', (req, res) => {
+  const keysStatus = {
+    GEMINI_API_KEY: !!process.env.GEMINI_API_KEY,
+    OPENROUTER_API_KEY: !!process.env.OPENROUTER_API_KEY,
+    GROQ_API_KEY: !!process.env.GROQ_API_KEY,
+    HF_TOKEN: !!process.env.HF_TOKEN,
+    TAVILY_API_KEY: !!process.env.TAVILY_API_KEY,
+    DEEPGRAM_API_KEY: !!process.env.DEEPGRAM_API_KEY,
+    ELEVENLABS_API_KEY: !!process.env.ELEVENLABS_API_KEY,
+    REPLICATE_API_KEY: !!process.env.REPLICATE_API_KEY,
+    OPENAI_API_KEY: !!process.env.OPENAI_API_KEY,
+    ANTHROPIC_API_KEY: !!process.env.ANTHROPIC_API_KEY
+  };
+  res.json({ success: true, keys: keysStatus });
+});
+
+// -------------------------------------------------------------
+// 4. CHAT AI ROUTER ENDPOINT
 // -------------------------------------------------------------
 app.post('/api/chat', async (req, res) => {
   try {
-    const { sessionId = 'default-session', message, provider = 'groq' } = req.body;
+    const { sessionId = 'default-session', message, provider = 'gemini' } = req.body;
     
     if (!memoryStore.has(sessionId)) {
       memoryStore.set(sessionId, [{ role: 'system', content: SYSTEM_PROMPT }]);
@@ -55,9 +73,13 @@ app.post('/api/chat', async (req, res) => {
     history.push({ role: 'user', content: message || 'Hello' });
 
     let reply = '';
-    if (provider === 'claude') reply = await callClaude(history);
+    if (provider === 'gemini') reply = await callGemini(history);
+    else if (provider === 'openrouter') reply = await callOpenRouter(history);
+    else if (provider === 'groq') reply = await callGroq(history);
+    else if (provider === 'huggingface') reply = await callHuggingFace(history);
+    else if (provider === 'claude') reply = await callClaude(history);
     else if (provider === 'gpt') reply = await callOpenAI(history);
-    else reply = await callGroq(history);
+    else reply = await callGemini(history);
 
     history.push({ role: 'assistant', content: reply });
     res.json({ success: true, provider, reply });
@@ -66,12 +88,26 @@ app.post('/api/chat', async (req, res) => {
   }
 });
 
+// -------------------------------------------------------------
+// 5. IMAGE GENERATION ROUTE
+// -------------------------------------------------------------
 app.post('/api/generate-image', async (req, res) => {
   try {
-    const { prompt } = req.body;
-    if (!process.env.REPLICATE_API_KEY) {
-      return res.json({ success: false, error: 'REPLICATE_API_KEY environment variable is not set.' });
+    const { prompt, engine = 'replicate' } = req.body;
+
+    if (engine === 'huggingface') {
+      if (!process.env.HF_TOKEN) return res.json({ success: false, error: 'HF_TOKEN missing.' });
+      const response = await fetch("https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-dev", {
+        headers: { Authorization: `Bearer ${process.env.HF_TOKEN}`, "Content-Type": "application/json" },
+        method: "POST",
+        body: JSON.stringify({ inputs: prompt }),
+      });
+      const blob = await response.arrayBuffer();
+      const base64 = Buffer.from(blob).toString('base64');
+      return res.json({ success: true, imageUrl: `data:image/jpeg;base64,${base64}` });
     }
+
+    if (!process.env.REPLICATE_API_KEY) return res.json({ success: false, error: 'REPLICATE_API_KEY missing.' });
     const response = await fetch('https://api.replicate.com/v1/models/black-forest-labs/flux-schnell/predictions', {
       method: 'POST',
       headers: {
@@ -89,10 +125,55 @@ app.post('/api/generate-image', async (req, res) => {
 });
 
 // -------------------------------------------------------------
-// 4. API CALL HELPERS
+// 6. TAVILY LIVE WEB SEARCH ROUTE
 // -------------------------------------------------------------
+app.post('/api/search', async (req, res) => {
+  try {
+    const { query } = req.body;
+    if (!process.env.TAVILY_API_KEY) return res.json({ success: false, error: 'TAVILY_API_KEY missing.' });
+
+    const response = await fetch('https://api.tavily.com/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ api_key: process.env.TAVILY_API_KEY, query, search_depth: 'basic' })
+    });
+    const data = await response.json();
+    res.json({ success: true, results: data.results });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// -------------------------------------------------------------
+// 7. API PROVIDER IMPLEMENTATIONS
+// -------------------------------------------------------------
+async function callGemini(messages) {
+  if (!process.env.GEMINI_API_KEY) return "GEMINI_API_KEY is missing in Render.";
+  const userMsg = messages[messages.length - 1].content;
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contents: [{ parts: [{ text: userMsg }] }] })
+  });
+  const data = await res.json();
+  if (data.error) return `Gemini Error: ${data.error.message}`;
+  return data.candidates ? data.candidates[0].content.parts[0].text : JSON.stringify(data);
+}
+
+async function callOpenRouter(messages) {
+  if (!process.env.OPENROUTER_API_KEY) return "OPENROUTER_API_KEY is missing in Render.";
+  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: 'deepseek/deepseek-r1:free', messages })
+  });
+  const data = await res.json();
+  if (data.error) return `OpenRouter Error: ${data.error.message}`;
+  return data.choices ? data.choices[0].message.content : JSON.stringify(data);
+}
+
 async function callGroq(messages) {
-  if (!process.env.GROQ_API_KEY) return "GROQ_API_KEY is not configured in Render Environment Variables.";
+  if (!process.env.GROQ_API_KEY) return "GROQ_API_KEY is missing in Render.";
   const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${process.env.GROQ_API_KEY}`, 'Content-Type': 'application/json' },
@@ -103,8 +184,21 @@ async function callGroq(messages) {
   return data.choices ? data.choices[0].message.content : JSON.stringify(data);
 }
 
+async function callHuggingFace(messages) {
+  if (!process.env.HF_TOKEN) return "HF_TOKEN is missing in Render.";
+  const userMsg = messages[messages.length - 1].content;
+  const res = await fetch('https://api-inference.huggingface.co/models/meta-llama/Llama-3.2-3B-Instruct/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${process.env.HF_TOKEN}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: 'meta-llama/Llama-3.2-3B-Instruct', messages: [{ role: 'user', content: userMsg }] })
+  });
+  const data = await res.json();
+  if (data.error) return `HuggingFace Error: ${data.error}`;
+  return data.choices ? data.choices[0].message.content : JSON.stringify(data);
+}
+
 async function callOpenAI(messages) {
-  if (!process.env.OPENAI_API_KEY) return "OPENAI_API_KEY is not configured in Render Environment Variables.";
+  if (!process.env.OPENAI_API_KEY) return "OPENAI_API_KEY is missing in Render.";
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
@@ -116,7 +210,7 @@ async function callOpenAI(messages) {
 }
 
 async function callClaude(messages) {
-  if (!process.env.ANTHROPIC_API_KEY) return "ANTHROPIC_API_KEY is not configured in Render Environment Variables.";
+  if (!process.env.ANTHROPIC_API_KEY) return "ANTHROPIC_API_KEY is missing in Render.";
   const systemMsg = messages.find(m => m.role === 'system')?.content || '';
   const userMsgs = messages.filter(m => m.role !== 'system');
   const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -134,17 +228,17 @@ async function callClaude(messages) {
 }
 
 // -------------------------------------------------------------
-// 5. WEBSOCKET VOICE CONNECTION
+// 8. WEBSOCKET VOICE CONNECTION
 // -------------------------------------------------------------
 wss.on('connection', (ws) => {
-  console.log('🎙️ Real-Time Voice Socket Connected');
+  console.log('🎙️ Voice WebSocket Active');
   ws.on('message', (msg) => {
-    ws.send(JSON.stringify({ status: 'received', message: 'Voice stream chunk processed' }));
+    ws.send(JSON.stringify({ status: 'active', message: 'Audio stream packet processed' }));
   });
 });
 
 const PORT = process.env.PORT || 10000;
 server.listen(PORT, () => {
-  console.log(`🚀 Johnny Tec AI Server live on port ${PORT}`);
+  console.log(`🚀 Johnny TEC Server Live on Port ${PORT}`);
 });
-      
+    
