@@ -50,11 +50,16 @@ app.get('/api/keys-status', (req, res) => {
     GROQ_API_KEY: !!process.env.GROQ_API_KEY,
     HF_TOKEN: !!process.env.HF_TOKEN,
     TAVILY_API_KEY: !!process.env.TAVILY_API_KEY,
+    SERPAPI_KEY: !!process.env.SERPAPI_KEY,
     DEEPGRAM_API_KEY: !!process.env.DEEPGRAM_API_KEY,
     ELEVENLABS_API_KEY: !!process.env.ELEVENLABS_API_KEY,
+    NEETS_API_KEY: !!process.env.NEETS_API_KEY,
     REPLICATE_API_KEY: !!process.env.REPLICATE_API_KEY,
     OPENAI_API_KEY: !!process.env.OPENAI_API_KEY,
-    ANTHROPIC_API_KEY: !!process.env.ANTHROPIC_API_KEY
+    ANTHROPIC_API_KEY: !!process.env.ANTHROPIC_API_KEY,
+    VIRUSTOTAL_API_KEY: !!process.env.VIRUSTOTAL_API_KEY,
+    SHODAN_API_KEY: !!process.env.SHODAN_API_KEY,
+    LUMALABS_API_KEY: !!process.env.LUMALABS_API_KEY
   };
   res.json({ success: true, keys: keysStatus });
 });
@@ -125,13 +130,20 @@ app.post('/api/generate-image', async (req, res) => {
 });
 
 // -------------------------------------------------------------
-// 6. TAVILY LIVE WEB SEARCH ROUTE
+// 6. LIVE WEB SEARCH ROUTE (TAVILY / SERPAPI)
 // -------------------------------------------------------------
 app.post('/api/search', async (req, res) => {
   try {
-    const { query } = req.body;
-    if (!process.env.TAVILY_API_KEY) return res.json({ success: false, error: 'TAVILY_API_KEY missing.' });
+    const { query, engine = 'tavily' } = req.body;
 
+    if (engine === 'serpapi') {
+      if (!process.env.SERPAPI_KEY) return res.json({ success: false, error: 'SERPAPI_KEY missing.' });
+      const response = await fetch(`https://serpapi.com/search.json?q=${encodeURIComponent(query)}&api_key=${process.env.SERPAPI_KEY}`);
+      const data = await response.json();
+      return res.json({ success: true, results: data.organic_results });
+    }
+
+    if (!process.env.TAVILY_API_KEY) return res.json({ success: false, error: 'TAVILY_API_KEY missing.' });
     const response = await fetch('https://api.tavily.com/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -145,7 +157,118 @@ app.post('/api/search', async (req, res) => {
 });
 
 // -------------------------------------------------------------
-// 7. API PROVIDER IMPLEMENTATIONS
+// 7. VOICE TO TEXT (SPEECH TRANSCRIBE VIA GROQ WHISPER)
+// -------------------------------------------------------------
+app.post('/api/voice-to-text', async (req, res) => {
+  try {
+    const { audioBase64 } = req.body;
+    if (!process.env.GROQ_API_KEY) return res.json({ success: false, error: 'GROQ_API_KEY missing.' });
+    
+    const buffer = Buffer.from(audioBase64, 'base64');
+    const formData = new FormData();
+    const blob = new Blob([buffer], { type: 'audio/wav' });
+    formData.append('file', blob, 'audio.wav');
+    formData.append('model', 'whisper-large-v3');
+
+    const response = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${process.env.GROQ_API_KEY}` },
+      body: formData
+    });
+    const data = await response.json();
+    res.json({ success: true, text: data.text });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// -------------------------------------------------------------
+// 8. TEXT TO AUDIO (NEETS AI TTS)
+// -------------------------------------------------------------
+app.post('/api/text-to-audio', async (req, res) => {
+  try {
+    const { text, voiceId = 'us-v1' } = req.body;
+    if (!process.env.NEETS_API_KEY) return res.json({ success: false, error: 'NEETS_API_KEY missing.' });
+
+    const response = await fetch('https://api.neets.ai/v1/tts', {
+      method: 'POST',
+      headers: {
+        'X-API-Key': process.env.NEETS_API_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ text, voice_id: voiceId, params: { model: 'ar-diff-50k' } })
+    });
+    const blob = await response.arrayBuffer();
+    const base64 = Buffer.from(blob).toString('base64');
+    res.json({ success: true, audioUrl: `data:audio/mp3;base64,${base64}` });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// -------------------------------------------------------------
+// 9. CYBERSECURITY ANALYSIS ROUTE (VIRUSTOTAL & SHODAN)
+// -------------------------------------------------------------
+app.post('/api/cyber-scan', async (req, res) => {
+  try {
+    const { target, type = 'url' } = req.body;
+
+    if (type === 'shodan') {
+      if (!process.env.SHODAN_API_KEY) return res.json({ success: false, error: 'SHODAN_API_KEY missing.' });
+      const response = await fetch(`https://api.shodan.io/shodan/host/${target}?key=${process.env.SHODAN_API_KEY}`);
+      const data = await response.json();
+      return res.json({ success: true, data });
+    }
+
+    if (!process.env.VIRUSTOTAL_API_KEY) return res.json({ success: false, error: 'VIRUSTOTAL_API_KEY missing.' });
+    const urlId = Buffer.from(target).toString('base64').replace(/=/g, '');
+    const response = await fetch(`https://www.virustotal.com/api/v3/urls/${urlId}`, {
+      headers: { 'x-apikey': process.env.VIRUSTOTAL_API_KEY }
+    });
+    const data = await response.json();
+    res.json({ success: true, data: data.data ? data.data.attributes : data });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// -------------------------------------------------------------
+// 10. AI VIDEO GENERATOR (LUMA AI & HF ANIMATEDIFF)
+// -------------------------------------------------------------
+app.post('/api/generate-video', async (req, res) => {
+  try {
+    const { prompt, engine = 'luma' } = req.body;
+
+    if (engine === 'luma') {
+      if (!process.env.LUMALABS_API_KEY) return res.json({ success: false, error: 'LUMALABS_API_KEY missing.' });
+      const response = await fetch('https://api.lumalabs.ai/dream-machine/v1/generations', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.LUMALABS_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ prompt, model: 'ray-2' })
+      });
+      const data = await response.json();
+      return res.json({ success: true, generation: data });
+    }
+
+    if (!process.env.HF_TOKEN) return res.json({ success: false, error: 'HF_TOKEN missing.' });
+    const response = await fetch("https://api-inference.huggingface.co/models/guoyww/animatediff-motion-adapter-v1-5-2", {
+      headers: { Authorization: `Bearer ${process.env.HF_TOKEN}`, "Content-Type": "application/json" },
+      method: "POST",
+      body: JSON.stringify({ inputs: prompt }),
+    });
+    const blob = await response.arrayBuffer();
+    const base64 = Buffer.from(blob).toString('base64');
+    res.json({ success: true, videoUrl: `data:video/mp4;base64,${base64}` });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// -------------------------------------------------------------
+// 11. API PROVIDER IMPLEMENTATIONS
 // -------------------------------------------------------------
 async function callGemini(messages) {
   if (!process.env.GEMINI_API_KEY) return "GEMINI_API_KEY is missing in Render.";
@@ -228,7 +351,7 @@ async function callClaude(messages) {
 }
 
 // -------------------------------------------------------------
-// 8. WEBSOCKET VOICE CONNECTION
+// 12. WEBSOCKET VOICE CONNECTION
 // -------------------------------------------------------------
 wss.on('connection', (ws) => {
   console.log('🎙️ Voice WebSocket Active');
@@ -241,4 +364,4 @@ const PORT = process.env.PORT || 10000;
 server.listen(PORT, () => {
   console.log(`🚀 Johnny TEC Server Live on Port ${PORT}`);
 });
-    
+              
