@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Johnny TEC AI Backend Command Center</title>
+  <style>
+    :root {
+      --bg: #090a10;
+      --card: #121526;
+      --neon-cyan: #00f0ff;
+      --neon-pink: #ff007f;
+      --neon-green: #00ff66;
+      --text: #e0e6ed;
+    }
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      padding: 20px;
+    }
+    .container { max-width: 1000px; margin: 0 auto; }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 2px solid var(--neon-cyan);
+      padding-bottom: 15px;
+      margin-bottom: 25px;
+    }
+    h1 { margin: 0; color: var(--neon-cyan); font-size: 1.8rem; text-shadow: 0 0 10px rgba(0, 240, 255, 0.5); }
+    .status-badge {
+      background: rgba(0, 255, 102, 0.1);
+      border: 1px solid var(--neon-green);
+      color: var(--neon-green);
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .dot { width: 8px; height: 8px; background: var(--neon-green); border-radius: 50%; box-shadow: 0 0 8px var(--neon-green); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+    .card {
+      background: var(--card);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    }
+    .card h2 { margin-top: 0; font-size: 1.2rem; color: var(--neon-pink); border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 8px; }
+    select, input, textarea, button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 8px;
+      margin-bottom: 12px;
+      border-radius: 6px;
+      border: 1px solid rgba(255,255,255,0.2);
+      background: #090a10;
+      color: #fff;
+      box-sizing: border-box;
+    }
+    button {
+      background: linear-gradient(45deg, var(--neon-pink), var(--neon-cyan));
+      border: none;
+      font-weight: bold;
+      cursor: pointer;
+      color: #000;
+      transition: transform 0.2s;
+    }
+    button:active { transform: scale(0.98); }
+    .output {
+      background: #050608;
+      border: 1px solid rgba(0, 240, 255, 0.3);
+      border-radius: 6px;
+      padding: 12px;
+      min-height: 80px;
+      max-height: 200px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 0.85rem;
+      color: #a0aab5;
+      white-space: pre-wrap;
+    }
+    img.preview { max-width: 100%; border-radius: 8px; margin-top: 10px; display: none; border: 1px solid var(--neon-cyan); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>⚡ JOHNNY TEC BACKEND COMMAND CENTER</h1>
+      <div class="status-badge"><div class="dot"></div> SERVER ONLINE & UNLOCKED</div>
+    </header>
+
+    <div class="grid">
+      <!-- CHAT TESTER PANEL -->
+      <div class="card">
+        <h2>🤖 AI Model Router Tester</h2>
+        <label>Select Provider:</label>
+        <select id="providerSelect">
+          <option value="groq">Groq (Llama 3 70B)</option>
+          <option value="claude">Anthropic (Claude 3.5 Sonnet)</option>
+          <option value="gpt">OpenAI (GPT-4o Mini)</option>
+        </select>
+        <textarea id="chatInput" rows="3" placeholder="Enter message to test API..."></textarea>
+        <button onclick="testChat()">Send Request</button>
+        <div class="output" id="chatOutput">Response output will appear here...</div>
+      </div>
+
+      <!-- IMAGE GENERATION PANEL -->
+      <div class="card">
+        <h2>🎨 Flux.1 Image Generator</h2>
+        <input type="text" id="imagePrompt" placeholder="A cybernetic lion with neon blue eyes...">
+        <button onclick="testImage()">Generate Image</button>
+        <div class="output" id="imageOutput">Image URL output will appear here...</div>
+        <img id="imagePreview" class="preview" alt="Generated Output">
+      </div>
+
+      <!-- WEBSOCKET VOICE TESTER -->
+      <div class="card">
+        <h2>🎙️ Real-Time Voice WebSocket</h2>
+        <p style="font-size: 0.85rem; color: #8a99ad;">Test WebSocket handshake and keep-alive ping status.</p>
+        <button onclick="testWebSocket()">Connect WebSocket Stream</button>
+        <button onclick="pingServer()" style="background: transparent; border: 1px solid var(--neon-cyan); color: var(--neon-cyan);">Manual Keep-Alive Ping</button>
+        <div class="output" id="wsOutput">WebSocket logs will appear here...</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    async function testChat() {
+      const provider = document.getElementById('providerSelect').value;
+      const message = document.getElementById('chatInput').value || 'Hello Johnny Tec!';
+      const output = document.getElementById('chatOutput');
+      output.innerText = 'Connecting to ' + provider.toUpperCase() + ' API...';
+
+      try {
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ provider, message })
+        });
+        const data = await res.json();
+        output.innerText = JSON.stringify(data, null, 2);
+      } catch (err) {
+        output.innerText = 'Error: ' + err.message;
+      }
+    }
+
+    async function testImage() {
+      const prompt = document.getElementById('imagePrompt').value || 'Cyberpunk sports car night city';
+      const output = document.getElementById('imageOutput');
+      const img = document.getElementById('imagePreview');
+      output.innerText = 'Sending prompt to Replicate Flux.1...';
+      img.style.display = 'none';
+
+      try {
+        const res = await fetch('/api/generate-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt })
+        });
+        const data = await res.json();
+        output.innerText = JSON.stringify(data, null, 2);
+        if (data.imageUrl) {
+          img.src = data.imageUrl;
+          img.style.display = 'block';
+        }
+      } catch (err) {
+        output.innerText = 'Error: ' + err.message;
+      }
+    }
+
+    function testWebSocket() {
+      const output = document.getElementById('wsOutput');
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = protocol + '//' + window.location.host;
+      
+      output.innerText = 'Connecting to ' + wsUrl + '...';
+      const ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        output.innerText += '\n Connected! Sending ping packet...';
+        ws.send(JSON.stringify({ event: 'ping', time: Date.now() }));
+      };
+
+      ws.onmessage = (evt) => {
+        output.innerText += '\n Received: ' + evt.data;
+      };
+
+      ws.onerror = (err) => {
+        output.innerText += '\n WebSocket Error occurred.';
+      };
+    }
+
+    async function pingServer() {
+      const output = document.getElementById('wsOutput');
+      output.innerText = 'Sending manual keep-alive request...';
+      const res = await fetch('/ping');
+      const data = await res.json();
+      output.innerText = 'Server Pinged: ' + JSON.stringify(data);
+    }
+  </script>
+</body>
+</html>
